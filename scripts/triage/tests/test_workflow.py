@@ -2,6 +2,9 @@
 
 The uv pin is checked in CI's workflow too, since both install uv the same way.
 
+The workflow must pin the claude-code-action SHA the parser port was copied from, so a bump
+of the action fails here until the port is rechecked.
+
 The workflow's ``claude_args`` goes through claude-code-action's own parser, after the
 action's flags, so the tests read it from ``triage.yml`` and run it through a port of that
 parser (``scripts.triage.tests.claude_code_action``) rather than a shell.
@@ -28,6 +31,7 @@ from scripts.triage.inputs import (
 from scripts.triage.issue_input import INPUT_PATH
 from scripts.triage.prompt import DEFAULT_LABELS_DOC, DEFAULT_PROJECT_DOCS
 from scripts.triage.tests.claude_code_action import (
+    PORTED_ACTION_SHA,
     SdkOptions,
     agent_mode_claude_args,
     parse_sdk_options,
@@ -80,9 +84,14 @@ _EACH_INPUT_SHAPE = pytest.mark.parametrize(
 )
 
 
-def _workflow_claude_args() -> str:
+def _claude_step() -> dict[str, Any]:
+    step: dict[str, Any]
     (step,) = (step for step in _JOBS["triage"]["steps"] if step.get("id") == "claude")
-    claude_args: str = step["with"]["claude_args"]
+    return step
+
+
+def _workflow_claude_args() -> str:
+    claude_args: str = _claude_step()["with"]["claude_args"]
     return claude_args
 
 
@@ -486,3 +495,13 @@ def test_the_issue_input_lands_where_the_prompt_tells_claude_to_read_it():
     words = shlex.split(step["run"])
 
     assert words[words.index("--output") + 1] == f"$GITHUB_WORKSPACE/{INPUT_PATH}"
+
+
+def test_the_parser_port_names_the_claude_code_action_sha_the_workflow_pins():
+    pinned = _claude_step()["uses"].removeprefix("anthropics/claude-code-action@")
+
+    assert pinned == PORTED_ACTION_SHA, (
+        f"triage.yml pins claude-code-action {pinned}, but the port was copied from "
+        f"{PORTED_ACTION_SHA}. Recheck the port against the new version's source "
+        '(README.md, "Bumping claude-code-action"), then update PORTED_ACTION_SHA.'
+    )
