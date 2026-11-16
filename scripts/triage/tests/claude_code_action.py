@@ -1,8 +1,8 @@
 """What claude-code-action makes of a workflow's ``claude_args``, ported to Python.
 
-Test-only. A faithful port of the action at the SHA ``.github/workflows/triage.yml`` pins
-(anthropics/claude-code-action ``f3b070c88125d33dbae5653df5f143101d4ea9dc``, v1.0.276), so a
-test can see the options the Claude CLI really gets:
+Test-only. A faithful port of anthropics/claude-code-action at ``PORTED_ACTION_SHA``, which
+must be the SHA ``.github/workflows/triage.yml`` pins, so a test can see the options the
+Claude CLI really gets:
 
 - ``src/modes/agent/index.ts`` (``prepareAgentMode``): the prefix the action puts in
   front of the workflow's ``claude_args``.
@@ -25,6 +25,9 @@ import json
 import re
 from dataclasses import dataclass, field
 from typing import Final
+
+# v1.0.276.
+PORTED_ACTION_SHA: Final = "f3b070c88125d33dbae5653df5f143101d4ea9dc"
 
 # JavaScript's \s and String.prototype.trim() set, which is not quite Python's.
 _JS_SPACE: Final = "".join(

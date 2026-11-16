@@ -149,9 +149,9 @@ The history behind these rules is in aura-prototype, triage's first consumer: th
 
 ### Bumping `claude-code-action`
 
-The port the regression test relies on, `scripts/triage/tests/claude_code_action.py`, is faithful only to the action SHA it names. On any bump of `anthropics/claude-code-action`, recheck the port against the new SHA's `base-action/src/parse-sdk-options.ts`, `src/modes/agent/index.ts` and the `shell-quote` version `base-action/bun.lock` locks, update it and the SHA its docstring names, and only then merge the bump.
+The port the regression test relies on, `scripts/triage/tests/claude_code_action.py`, is faithful only to the action SHA it names. On any bump of `anthropics/claude-code-action`, recheck the port against the new SHA's `base-action/src/parse-sdk-options.ts`, `src/modes/agent/index.ts` and the `shell-quote` version `base-action/bun.lock` locks, update it and its `PORTED_ACTION_SHA`, and only then merge the bump.
 
-A Dependabot bump of the action can't skip this: `test_the_parser_port_names_the_claude_code_action_sha_the_workflow_pins` in `scripts/triage/tests/test_workflow.py` fails while the SHA `triage.yml` pins differs from the one the port's docstring names. Push the recheck, and the docstring's new SHA, to the Dependabot PR's branch, and CI passes again.
+A Dependabot bump of the action can't skip this: `test_the_parser_port_names_the_claude_code_action_sha_the_workflow_pins` in `scripts/triage/tests/test_workflow.py` fails while the SHA `triage.yml` pins differs from the port's `PORTED_ACTION_SHA`. Push the recheck, and the new `PORTED_ACTION_SHA`, to the Dependabot PR's branch, and CI passes again.
 
 ### Bumping uv
 
@@ -162,7 +162,7 @@ Dependabot doesn't read `version:` or `checksum:`, so a uv bump is a deliberate 
 1. Pick the latest stable release from [astral-sh/uv's releases](https://github.com/astral-sh/uv/releases), and read its changelog.
 2. Take the checksum from its `uv-x86_64-unknown-linux-gnu.tar.gz.sha256` asset: `gh release download <version> -R astral-sh/uv -p 'uv-x86_64-unknown-linux-gnu.tar.gz.sha256' -O -`.
 3. Update `version:` and `checksum:` on every `setup-uv` step together, in `triage.yml` and `ci.yml`.
-4. Check that the new release still serves the Python in `.python-version` on the runners: run with the new uv, `UV_PYTHON_PREFERENCE=only-managed uv python list <python version> --only-downloads --all-platforms --all-arches` lists a `linux-x86_64-gnu` download.
+4. Check that the new release still serves the Python in `.python-version` on the runners: `UV_PYTHON_PREFERENCE=only-managed uvx uv@<version> python list <python version> --only-downloads --all-platforms --all-arches` lists a `linux-x86_64-gnu` download.
 5. Open the PR, and let CI run the suite on it. `scripts/triage/tests/test_workflow.py` fails if any step lacks an exact version or a checksum, or if the steps disagree.
 
 ### The actionlint ignore
