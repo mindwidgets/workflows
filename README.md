@@ -132,8 +132,6 @@ Your repo keeps its own Claude credential as a repository secret, and the caller
 
 Dependabot (`.github/dependabot.yml`) checks the pinned actions (`github-actions`), the Python packages in `uv.lock` (`uv`) and the pre-commit hooks (`pre-commit`) weekly, and proposes each bump as a PR, which CI checks like any other. Each ecosystem's minor and patch updates arrive together in one PR; each major update arrives in its own PR, so a breaking one never holds up routine bumps. Actions stay pinned by full SHA, and Dependabot moves the SHA and its `# vX.Y.Z` comment together.
 
-GitHub validates `.github/dependabot.yml` only once it reaches `main`, and a broken config there just stops the PRs, with no error anywhere you'd look. So the check command validates it against its schema (the `check-dependabot` pre-commit hook), and a PR that breaks it fails CI.
-
 Two bumps need more than merging the PR:
 
 - **`anthropics/claude-code-action`:** its Dependabot PR fails CI on purpose, until the port the triage tests use is rechecked against the new version (see [Bumping `claude-code-action`](#bumping-claude-code-action)).
