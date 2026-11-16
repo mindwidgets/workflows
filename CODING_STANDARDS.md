@@ -8,13 +8,13 @@ Read at review time (`code-review`), not during implementation. Each source belo
 - **Terms**: `GLOSSARY.md`, once it exists. Use its canonical terms and flag the terms it says to avoid.
 - **Design decisions**: `docs/adr/`, once it exists. Flag code that departs from an accepted ADR.
 
-`bash scripts/check.sh` runs ruff, ruff format, mypy, actionlint and pytest, in pre-commit and CI. Skip what they enforce.
+ruff, ruff format, mypy and actionlint run in pre-commit; the check command in `AGENTS.md` runs them and pytest, locally and in CI. Skip what they enforce.
 
 ## Python
 
 - Scripts are Python in this uv project, run with `uv run`. Add dependencies with `uv add` (or `uv add --dev`), so `pyproject.toml` and `uv.lock` change together.
 - Scripts are fully typed: mypy runs in `strict` mode over every `.py` file. Tests are exempt from annotations, but their bodies are still checked. A `# type: ignore` names its error code.
-- Tests use pytest, live in `tests/`, and test a script through its public entry points.
+- Tests use pytest, live in `scripts/<name>/tests/` beside the workflow's scripts, and test a script through its public entry points.
 
 ## Workflows
 

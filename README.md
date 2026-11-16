@@ -1,6 +1,6 @@
 # workflows
 
-Shared, reusable GitHub Actions workflows. Each workflow lives in `.github/workflows/`, with its Python scripts in `scripts/` and their tests in `tests/`.
+Shared, reusable GitHub Actions workflows. Each workflow lives in `.github/workflows/`, with its Python scripts and their tests beside it in `scripts/<name>/`.
 
 ## Calling a workflow
 
@@ -17,4 +17,4 @@ Each workflow documents its own inputs, the secrets it needs and the `permission
 
 ## Contributing
 
-See `AGENTS.md` for the issue tracker, labels and setup, and `CODING_STANDARDS.md` for the standards. Once per clone, run `uv sync` and `uv run pre-commit install`; `bash scripts/check.sh` runs every check CI does.
+See `AGENTS.md` for the issue tracker, labels and setup, and `CODING_STANDARDS.md` for the standards. `AGENTS.md` also gives the setup and the check command CI runs.

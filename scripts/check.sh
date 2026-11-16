@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# The repo's check command: every pre-commit hook on all files, then the tests.
+# The repo's check command: the pre-commit hooks on all files (all but
+# no-commit-to-branch), then the tests.
 # CI runs it on every PR and push to main. It syncs the environment itself, so it
 # runs from a fresh clone with only uv installed.
 set -euo pipefail

@@ -16,7 +16,6 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
 pythonpath = ["."]
 
 [tool.ruff]
@@ -38,7 +37,7 @@ select = [
 
 [tool.mypy]
 python_version = "3.14"
-# Every .py file in the repo: workflow scripts and their tests live beside each workflow.
+# Every .py file in the repo, wherever a workflow's scripts and tests sit.
 files = ["."]
 exclude = ['^\.venv/', '^\.claude/']
 explicit_package_bases = true
@@ -48,6 +47,6 @@ enable_error_code = ["ignore-without-code"]
 
 # Test functions and fixtures need no annotations; their bodies stay checked.
 [[tool.mypy.overrides]]
-module = ["tests.*"]
+module = ["tests.*", "*.tests.*"]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false

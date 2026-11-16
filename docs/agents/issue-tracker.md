@@ -8,7 +8,7 @@ Issues and specs for this repo live as GitHub issues in `mindwidgets/workflows`.
 - **Read an issue**: `gh issue view <number> --json number,title,body,labels,comments`. Not `--comments`: outside a terminal it prints only the comments, so an issue with none reads as empty.
 - **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
 - **Make an issue a sub-issue of a parent**: `gh issue create --parent <parent> ...`, or `gh issue edit <parent> --add-sub-issue <child>` afterwards.
-- **Publish a batch of tickets** (`to-tickets`, maintainer only): the maintainer publishes a batch with a shared script from their home repo, which creates the tickets under the parent with blocking edges and reads them back. Everyone else creates tickets one at a time as above, then adds sub-issue and blocking links as below.
+- **Publish a batch of tickets** (`to-tickets`): the maintainer publishes batches with tooling that isn't part of this repo. Everyone else creates tickets one at a time as above, then adds sub-issue and blocking links as below.
 - **Comment on an issue**: `gh issue comment <number> --body "..."`
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
 - **Close**: `gh issue close <number> --comment "..."`
@@ -21,7 +21,7 @@ Infer the repo from `git remote -v`; `gh` does this automatically when run insid
 
 When set to `yes`, PRs run through the same labels and states as issues, using the `gh pr` equivalents:
 
-- **Read a PR**: `gh pr view <number> --comments` and `gh pr diff <number>` for the diff.
+- **Read a PR**: `gh pr view <number> --json number,title,body,labels,comments` (not `--comments`, as for issues) and `gh pr diff <number>` for the diff.
 - **List external PRs for triage**: `gh api --paginate 'repos/{owner}/{repo}/pulls?state=open' --jq '.[] | select(.author_association | IN("OWNER","MEMBER","COLLABORATOR") | not) | {number, title, author: .user.login, author_association, labels: [.labels[].name]}'`.
 - **Comment / label / close**: `gh pr comment`, `gh pr edit --add-label`/`--remove-label`, `gh pr close`.
 
