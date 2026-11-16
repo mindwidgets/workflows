@@ -1,8 +1,8 @@
 """What claude-code-action makes of a workflow's ``claude_args``, ported to Python.
 
 Test-only. A faithful port of the action at the SHA ``.github/workflows/triage.yml`` pins
-(anthropics/claude-code-action ``f3b070c8``, v1.0.276), so a test can see the options the
-Claude CLI really gets:
+(anthropics/claude-code-action ``f3b070c88125d33dbae5653df5f143101d4ea9dc``, v1.0.276), so a
+test can see the options the Claude CLI really gets:
 
 - ``src/modes/agent/index.ts`` (``prepareAgentMode``): the prefix the action puts in
   front of the workflow's ``claude_args``.

@@ -128,6 +128,15 @@ Your repo keeps its own Claude credential as a repository secret, and the caller
 - **API key instead:** add an `ANTHROPIC_API_KEY` secret holding a Claude Console key, and change the one line under `secrets:` to `ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}`.
 - **Pass one, not both.** If you pass both, Claude uses `ANTHROPIC_API_KEY` and bills the Console key, not your subscription.
 
+## Dependency updates
+
+Dependabot (`.github/dependabot.yml`) checks the pinned actions (`github-actions`), the Python packages in `uv.lock` (`uv`) and the pre-commit hooks (`pre-commit`) weekly, and proposes each bump as a PR, which CI checks like any other. Each ecosystem's minor and patch updates arrive together in one PR; each major update arrives in its own PR, so a breaking one never holds up routine bumps. Actions stay pinned by full SHA, and Dependabot moves the SHA and its `# vX.Y.Z` comment together.
+
+Two bumps need more than merging the PR:
+
+- **`anthropics/claude-code-action`:** its Dependabot PR fails CI on purpose, until the port the triage tests use is rechecked against the new version (see [Bumping `claude-code-action`](#bumping-claude-code-action)).
+- **uv itself:** Dependabot never reads values under `with:`, so it never moves the uv release the `setup-uv` steps install. Bump it by hand (see [Bumping uv](#bumping-uv)).
+
 ## Maintaining triage
 
 The history behind these rules is in aura-prototype, triage's first consumer: the original spec ([aaronsilinskas/aura-prototype#1398](https://github.com/aaronsilinskas/aura-prototype/issues/1398)), the bug that dropped Claude's sandbox ([#1407](https://github.com/aaronsilinskas/aura-prototype/issues/1407)) and the acceptance pass ([#1403](https://github.com/aaronsilinskas/aura-prototype/issues/1403)).
@@ -142,11 +151,19 @@ The history behind these rules is in aura-prototype, triage's first consumer: th
 
 The port the regression test relies on, `scripts/triage/tests/claude_code_action.py`, is faithful only to the action SHA it names. On any bump of `anthropics/claude-code-action`, recheck the port against the new SHA's `base-action/src/parse-sdk-options.ts`, `src/modes/agent/index.ts` and the `shell-quote` version `base-action/bun.lock` locks, update it and the SHA its docstring names, and only then merge the bump.
 
+A Dependabot bump of the action can't skip this: `test_the_parser_port_names_the_claude_code_action_sha_the_workflow_pins` in `scripts/triage/tests/test_workflow.py` fails while the SHA `triage.yml` pins differs from the one the port's docstring names. Push the recheck, and the docstring's new SHA, to the Dependabot PR's branch, and CI passes again.
+
 ### Bumping uv
 
 Every `astral-sh/setup-uv` step, in `triage.yml` and in CI, installs one exact uv release (`version:`) and checks the download against that release's sha256 (`checksum:`, for `uv-x86_64-unknown-linux-gnu.tar.gz`). Without them, setup-uv installs whatever uv is newest when the job runs, including in the job holding the consumer's Claude credential and the one that writes to its issues. Python comes from the same pin: the workflows set `UV_PYTHON_PREFERENCE=only-managed`, so uv runs the CPython build its own release names and verifies it against the sha256 that release carries, never a Python on the runner image.
 
-So a uv bump is a deliberate change, made in its own PR: pick the release, read its changelog, take the checksum from its `uv-x86_64-unknown-linux-gnu.tar.gz.sha256` asset, update `version:` and `checksum:` on every step together, and let CI run the suite on it. `scripts/triage/tests/test_workflow.py` fails if any step lacks an exact version or a checksum, or if the steps disagree.
+Dependabot doesn't read `version:` or `checksum:`, so a uv bump is a deliberate change, made by hand in its own PR:
+
+1. Pick the latest stable release from [astral-sh/uv's releases](https://github.com/astral-sh/uv/releases), and read its changelog.
+2. Take the checksum from its `uv-x86_64-unknown-linux-gnu.tar.gz.sha256` asset: `gh release download <version> -R astral-sh/uv -p 'uv-x86_64-unknown-linux-gnu.tar.gz.sha256' -O -`.
+3. Update `version:` and `checksum:` on every `setup-uv` step together, in `triage.yml` and `ci.yml`.
+4. Check that the new release still serves the Python in `.python-version` on the runners: run with the new uv, `UV_PYTHON_PREFERENCE=only-managed uv python list <python version> --only-downloads --all-platforms --all-arches` lists a `linux-x86_64-gnu` download.
+5. Open the PR, and let CI run the suite on it. `scripts/triage/tests/test_workflow.py` fails if any step lacks an exact version or a checksum, or if the steps disagree.
 
 ### The actionlint ignore
 

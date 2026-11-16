@@ -27,6 +27,7 @@ from scripts.triage.inputs import (
 )
 from scripts.triage.issue_input import INPUT_PATH
 from scripts.triage.prompt import DEFAULT_LABELS_DOC, DEFAULT_PROJECT_DOCS
+from scripts.triage.tests import claude_code_action
 from scripts.triage.tests.claude_code_action import (
     SdkOptions,
     agent_mode_claude_args,
@@ -486,3 +487,18 @@ def test_the_issue_input_lands_where_the_prompt_tells_claude_to_read_it():
     words = shlex.split(step["run"])
 
     assert words[words.index("--output") + 1] == f"$GITHUB_WORKSPACE/{INPUT_PATH}"
+
+
+def test_the_parser_port_names_the_claude_code_action_sha_the_workflow_pins():
+    # A tripwire for bumps: the port is faithful only to the action release it was copied from.
+    (claude,) = (step for step in _JOBS["triage"]["steps"] if step.get("id") == "claude")
+    pinned = claude["uses"].removeprefix("anthropics/claude-code-action@")
+    ported = re.findall(
+        r"anthropics/claude-code-action ``(\w+)``", claude_code_action.__doc__ or ""
+    )
+
+    assert ported == [pinned], (
+        f"triage.yml pins claude-code-action {pinned}, but scripts/triage/tests/"
+        f"claude_code_action.py names {ported}. Recheck the port against the new version's "
+        'source (README.md, "Bumping claude-code-action"), then update the SHA in its docstring.'
+    )
