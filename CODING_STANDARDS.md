@@ -5,7 +5,7 @@ Read at review time (`code-review`), not during implementation. Each source belo
 - **Production code**: the `code-quality` skill (`code-quality/SKILL.md`).
 - **Tests**: the `test-quality` skill (`test-quality/SKILL.md`) and `test-quality/mocking-python.md`.
 - **Comments and docstrings**: the `comments` skill (`comments/SKILL.md`) and `comments/python-docstrings.md`.
-- **Terms**: `GLOSSARY.md`, once it exists. Use its canonical terms and flag the terms it says to avoid.
+- **Terms**: `GLOSSARY.md`. Use its canonical terms and flag the terms it says to avoid.
 - **Design decisions**: `docs/adr/`, once it exists. Flag code that departs from an accepted ADR.
 
 ruff, ruff format, mypy and actionlint run in pre-commit; the check command in `AGENTS.md` runs them and pytest, locally and in CI. Skip what they enforce.

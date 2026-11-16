@@ -2,7 +2,7 @@
 
 :func:`render_issue_input` is pure apart from its random block marker: an issue as
 ``gh issue view --json`` returns it in, the input file's text out. ``main`` is the workflow
-step's wrapper: it fetches the issue with :func:`~scripts.triage.issue.view_issue` and writes
+step's entry point: it fetches the issue with :func:`~scripts.triage.issue.view_issue` and writes
 the input file, taking the issue number as an argument so no issue text ever passes through a
 shell.
 """
@@ -10,6 +10,7 @@ shell.
 import argparse
 import json
 import secrets
+import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Final
@@ -68,7 +69,11 @@ def _unused_marker(data: str) -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    """Fetch one issue and write its untrusted input file for Claude to read."""
+    """Fetch one issue and write its untrusted input file for Claude to read.
+
+    The file must not exist yet: the output sits in the consumer's checkout, where a file or
+    symlink by that name could redirect the write, so the step fails instead.
+    """
     parser = argparse.ArgumentParser(description="Write the issue input for a triage run.")
     parser.add_argument("--issue", required=True, type=int, help="the issue number")
     parser.add_argument(
@@ -76,7 +81,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
-    args.output.write_text(render_issue_input(view_issue(args.issue, _GH_FIELDS)), encoding="utf-8")
+    text = render_issue_input(view_issue(args.issue, _GH_FIELDS))
+    try:
+        # Mode "x" creates the file or fails, and never follows a symlink.
+        with args.output.open("x", encoding="utf-8") as output:
+            output.write(text)
+    except FileExistsError:
+        sys.exit(f"triage input: {args.output} already exists; refusing to write through it")
     print(f"triage input: wrote #{args.issue} to {args.output}")
 
 

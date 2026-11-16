@@ -102,12 +102,12 @@ def test_each_skip_states_its_own_reason():
 
 
 # ---------------------------------------------------------------------------
-# The command-line wrapper. gh is stubbed: no network.
+# The command-line entry point. gh is stubbed: no network.
 # ---------------------------------------------------------------------------
 
 
-def _run_wrapper(args, fake_gh, tmp_path, monkeypatch) -> dict[str, str]:
-    """Run the wrapper against *fake_gh* and return what it wrote to the step's outputs."""
+def _run_main(args, fake_gh, tmp_path, monkeypatch) -> dict[str, str]:
+    """Run the entry point against *fake_gh* and return what it wrote to the step's outputs."""
     outputs = tmp_path / "github_output"
     outputs.touch()
     monkeypatch.setenv("GITHUB_OUTPUT", str(outputs))
@@ -116,8 +116,8 @@ def _run_wrapper(args, fake_gh, tmp_path, monkeypatch) -> dict[str, str]:
     return dict(line.split("=", 1) for line in outputs.read_text().splitlines())
 
 
-def test_the_wrapper_outputs_run_for_a_live_needs_triage_label(tmp_path, monkeypatch):
-    outputs = _run_wrapper(
+def test_the_entry_point_outputs_run_for_a_live_needs_triage_label(tmp_path, monkeypatch):
+    outputs = _run_main(
         ["--event", "labeled", "--issue", "42", "--label", "needs-triage"],
         FakeGh(gh_issue(42, labels=("needs-triage",))),
         tmp_path,
@@ -127,8 +127,8 @@ def test_the_wrapper_outputs_run_for_a_live_needs_triage_label(tmp_path, monkeyp
     assert outputs["run"] == "true"
 
 
-def test_the_wrapper_trusts_the_live_labels_over_the_event(tmp_path, monkeypatch):
-    outputs = _run_wrapper(
+def test_the_entry_point_trusts_the_live_labels_over_the_event(tmp_path, monkeypatch):
+    outputs = _run_main(
         ["--event", "labeled", "--issue", "42", "--label", "needs-triage"],
         FakeGh(gh_issue(42, labels=("bug",))),
         tmp_path,
@@ -138,8 +138,8 @@ def test_the_wrapper_trusts_the_live_labels_over_the_event(tmp_path, monkeypatch
     assert outputs["run"] == "false"
 
 
-def test_the_wrapper_treats_a_bot_sender_type_as_a_bot(tmp_path, monkeypatch):
-    outputs = _run_wrapper(
+def test_the_entry_point_treats_a_bot_sender_type_as_a_bot(tmp_path, monkeypatch):
+    outputs = _run_main(
         ["--event", "workflow_dispatch", "--issue", "42", "--sender-type", "Bot"],
         FakeGh(gh_issue(42, labels=("needs-triage",))),
         tmp_path,
@@ -149,8 +149,8 @@ def test_the_wrapper_treats_a_bot_sender_type_as_a_bot(tmp_path, monkeypatch):
     assert outputs["run"] == "false"
 
 
-def test_the_wrapper_logs_the_skip_reason(tmp_path, monkeypatch, capsys):
-    _run_wrapper(
+def test_the_entry_point_logs_the_skip_reason(tmp_path, monkeypatch, capsys):
+    _run_main(
         ["--event", "workflow_dispatch", "--issue", "42"],
         FakeGh(gh_issue(42, state="CLOSED", labels=("needs-triage",))),
         tmp_path,
@@ -160,10 +160,10 @@ def test_the_wrapper_logs_the_skip_reason(tmp_path, monkeypatch, capsys):
     assert "skip: #42 is closed" in capsys.readouterr().out
 
 
-def test_the_wrapper_outputs_the_default_model_and_turn_cap_when_both_are_empty(
+def test_the_entry_point_outputs_the_default_model_and_turn_cap_when_both_are_empty(
     tmp_path, monkeypatch
 ):
-    outputs = _run_wrapper(
+    outputs = _run_main(
         ["--event", "workflow_dispatch", "--issue", "42", "--model", "", "--max-turns", ""],
         FakeGh(gh_issue(42, labels=("needs-triage",))),
         tmp_path,
@@ -173,8 +173,8 @@ def test_the_wrapper_outputs_the_default_model_and_turn_cap_when_both_are_empty(
     assert outputs == {"run": "true", "model": "sonnet", "max-turns": "10"}
 
 
-def test_the_wrapper_outputs_a_valid_model_and_turn_cap_as_given(tmp_path, monkeypatch):
-    outputs = _run_wrapper(
+def test_the_entry_point_outputs_a_valid_model_and_turn_cap_as_given(tmp_path, monkeypatch):
+    outputs = _run_main(
         [
             *("--event", "workflow_dispatch", "--issue", "42"),
             *("--model", "claude-opus-4-1", "--max-turns", "50"),
@@ -191,13 +191,13 @@ def test_the_wrapper_outputs_a_valid_model_and_turn_cap_as_given(tmp_path, monke
     ("option", "value", "named"),
     [("--model", "sonnet #x", "model"), ("--max-turns", "51", "max-turns")],
 )
-def test_the_wrapper_fails_on_an_invalid_input_before_reading_the_issue(
+def test_the_entry_point_fails_on_an_invalid_input_before_reading_the_issue(
     option, value, named, tmp_path, monkeypatch
 ):
     fake_gh = FakeGh(gh_issue(42, labels=("needs-triage",)))
 
     with pytest.raises(SystemExit) as exit_info:
-        _run_wrapper(
+        _run_main(
             ["--event", "workflow_dispatch", "--issue", "42", option, value],
             fake_gh,
             tmp_path,

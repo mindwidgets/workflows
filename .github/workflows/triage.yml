@@ -16,11 +16,12 @@
 # them: the gate and Claude jobs get issues: read, and only the apply job writes.
 #
 # Concurrency: none here. The caller workflow owns it, one group per issue, not cancelling a
-# run in progress, so two events on one issue apply in order.
+# run in progress, so two events on one issue apply in order. Without it, two runs on one issue
+# can apply at once, and the later one may undo the earlier one's labels or post a second comment.
 #
 # Secrets, both optional; pass one by name (`secrets: inherit` only reaches callers in the
 # same organization or enterprise). An unset one is empty, which the Claude step treats as
-# absent:
+# absent; if both are set, Claude uses ANTHROPIC_API_KEY:
 #   CLAUDE_CODE_OAUTH_TOKEN  a Claude subscription token, from `claude setup-token`.
 #   ANTHROPIC_API_KEY        a Claude Console API key, instead.
 #
@@ -31,7 +32,9 @@
 #                 Default GLOSSARY.md, docs/domain.md and docs/adr/.
 #   model         the Claude model: letters, digits, '.', '-', '_', '[' and ']'. Default sonnet.
 #   max-turns     Claude's turn cap, a whole number from 1 to 50. Default 10.
-#   The gate validates model and max-turns; a bad value fails it, so nothing else runs.
+#   The gate validates model and max-turns; a bad value fails it, so nothing else runs. A
+#   labels-doc or project-docs path holding a backtick or line break fails the triage job
+#   before Claude runs.
 #
 # Example caller workflow (pin a full commit SHA of a release, with its tag in a comment):
 #

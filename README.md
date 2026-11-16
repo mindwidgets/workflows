@@ -79,6 +79,7 @@ on:
 permissions: {}
 
 # One run per issue at a time, never cancelling one in progress, so two events apply in order.
+# Without it, two runs on one issue can apply at once and undo each other's labels.
 concurrency:
   group: triage-${{ github.event.issue.number || inputs.issue }}
   cancel-in-progress: false
@@ -103,7 +104,7 @@ jobs:
 ```
 
 - The dispatch input must be named `issue`: the workflow reads it from your event.
-- `labels-doc` is the doc Claude reads first, saying what each label means in your repo. `project-docs` lists the files and directories Claude reads for your project's terms and structure, one per line.
+- `labels-doc` is the doc Claude reads first, saying what each label means in your repo. `project-docs` lists the files and directories Claude reads for your project's terms and structure, one per line. A path holding a backtick or line break fails the run before Claude starts.
 - `model` takes letters, digits, `.`, `-`, `_`, `[` and `]`; `max-turns` a whole number from 1 to 50. The gate rejects anything else, and then nothing else runs.
 
 ### Labels to create
@@ -125,6 +126,7 @@ Your repo keeps its own Claude credential as a repository secret, and the caller
 
 - **Subscription token (`CLAUDE_CODE_OAUTH_TOKEN`):** run `claude setup-token` locally and store the result as the secret. It expires one year after it is minted, so record the mint date and a renew-by date (about a month before expiry) in your repo's own docs, with a calendar reminder. To renew, mint a new token, replace the secret and update those dates. An expired or missing token fails the run red and leaves `needs-triage` on the issue.
 - **API key instead:** add an `ANTHROPIC_API_KEY` secret holding a Claude Console key, and change the one line under `secrets:` to `ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}`.
+- **Pass one, not both.** If you pass both, Claude uses `ANTHROPIC_API_KEY` and bills the Console key, not your subscription.
 
 ## Maintaining triage
 

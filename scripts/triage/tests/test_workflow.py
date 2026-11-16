@@ -25,6 +25,7 @@ from scripts.triage.inputs import (
     validate_max_turns,
     validate_model,
 )
+from scripts.triage.issue_input import INPUT_PATH
 from scripts.triage.prompt import DEFAULT_LABELS_DOC, DEFAULT_PROJECT_DOCS
 from scripts.triage.tests.claude_code_action import (
     SdkOptions,
@@ -478,3 +479,10 @@ def test_every_setup_uv_step_installs_the_same_uv_build():
 def test_uv_runs_only_the_python_build_its_pinned_release_names(workflow):
     # A Python already on the runner image would otherwise win over the pinned uv's own build.
     assert workflow["env"]["UV_PYTHON_PREFERENCE"] == "only-managed"
+
+
+def test_the_issue_input_lands_where_the_prompt_tells_claude_to_read_it():
+    (step,) = (step for step in _JOBS["triage"]["steps"] if "issue_input" in step.get("run", ""))
+    words = shlex.split(step["run"])
+
+    assert words[words.index("--output") + 1] == f"$GITHUB_WORKSPACE/{INPUT_PATH}"

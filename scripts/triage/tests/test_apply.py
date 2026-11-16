@@ -7,10 +7,8 @@ from unittest.mock import patch
 import pytest
 
 from scripts.triage.apply import (
-    CATEGORY_LABELS,
     DECISION_SCHEMA,
     MAX_COMMENT_LENGTH,
-    STATE_LABELS,
     EditLabels,
     PostComment,
     main,
@@ -18,6 +16,7 @@ from scripts.triage.apply import (
     plan,
 )
 from scripts.triage.issue import IssueState
+from scripts.triage.labels import CATEGORY_LABELS, STATE_LABELS
 from scripts.triage.tests.fake_gh import FakeGh, gh_issue
 
 _ISSUE = 7
@@ -305,7 +304,7 @@ def test_the_committed_schema_requires_every_field_but_the_agent_brief():
 
 
 # ---------------------------------------------------------------------------
-# The gh wrapper and the command-line step. gh is stubbed: no network.
+# perform and the command-line step. gh is stubbed: no network.
 # ---------------------------------------------------------------------------
 
 

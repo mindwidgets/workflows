@@ -4,7 +4,7 @@ Claude's decision ends up in a public issue comment, and the job that runs Claud
 Claude credential and a job token. The runner masks a secret only when it appears verbatim, so
 this check also looks for fragments of each secret and for its base64 and hex encodings. A
 missing decision fails here too, so the run shows red instead of passing with nothing to
-apply. :func:`carries_secret` is pure; ``main`` is the workflow step's wrapper, which fails the
+apply. :func:`carries_secret` is pure; ``main`` is the workflow step's entry point, which fails the
 job rather than pass a decision on.
 """
 
