@@ -140,9 +140,15 @@ The history behind these rules is in aura-prototype, triage's first consumer: th
 
 The port the regression test relies on, `scripts/triage/tests/claude_code_action.py`, is faithful only to the action SHA it names. On any bump of `anthropics/claude-code-action`, recheck the port against the new SHA's `base-action/src/parse-sdk-options.ts`, `src/modes/agent/index.ts` and the `shell-quote` version `base-action/bun.lock` locks, update it and the SHA its docstring names, and only then merge the bump.
 
+### Bumping uv
+
+Every `astral-sh/setup-uv` step, in `triage.yml` and in CI, installs one exact uv release (`version:`) and checks the download against that release's sha256 (`checksum:`, for `uv-x86_64-unknown-linux-gnu.tar.gz`). Without them, setup-uv installs whatever uv is newest when the job runs, including in the job holding the consumer's Claude credential and the one that writes to its issues. Python comes from the same pin: the workflows set `UV_PYTHON_PREFERENCE=only-managed`, so uv runs the CPython build its own release names and verifies it against the sha256 that release carries, never a Python on the runner image.
+
+So a uv bump is a deliberate change, made in its own PR: pick the release, read its changelog, take the checksum from its `uv-x86_64-unknown-linux-gnu.tar.gz.sha256` asset, update `version:` and `checksum:` on every step together, and let CI run the suite on it. `scripts/triage/tests/test_workflow.py` fails if any step lacks an exact version or a checksum, or if the steps disagree.
+
 ### The actionlint ignore
 
-`.github/actionlint.yaml` ignores one error, only in `triage.yml`: actionlint doesn't yet know the `job` context's documented `workflow_repository` and `workflow_sha`, which the tools checkout uses. The fix is upstream ([rhysd/actionlint#707](https://github.com/rhysd/actionlint/issues/707), still open). Once a release of actionlint knows `job.workflow_sha`, bump the pinned actionlint and delete the ignore.
+`.github/actionlint.yaml` ignores one error, only in `triage.yml`: actionlint doesn't yet know the `job` context's documented `workflow_repository` and `workflow_sha`, which the tools checkout uses. Each job's first step fails the run if either renders empty, since `actions/checkout` would otherwise fall back to your repo and ref. The fix is upstream ([rhysd/actionlint#707](https://github.com/rhysd/actionlint/issues/707), still open). Once a release of actionlint knows `job.workflow_sha`, bump the pinned actionlint and delete the ignore.
 
 ## Contributing
 
