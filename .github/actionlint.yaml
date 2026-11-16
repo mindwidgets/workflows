@@ -1,0 +1,8 @@
+# actionlint (through v1.7.12) doesn't know the job context's documented workflow_repository
+# and workflow_sha, which the triage workflow's tools checkout uses
+# (https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context).
+# Ignore only that error, only there; drop this once rhysd/actionlint#707 ships in a release.
+paths:
+  .github/workflows/triage.yml:
+    ignore:
+      - 'property "workflow_(repository|sha)" is not defined in object type \{check_run_id: number;'
