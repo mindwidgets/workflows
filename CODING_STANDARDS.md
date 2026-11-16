@@ -8,7 +8,7 @@ Read at review time (`code-review`), not during implementation. Each source belo
 - **Terms**: `GLOSSARY.md`. Use its canonical terms and flag the terms it says to avoid.
 - **Design decisions**: `docs/adr/`, once it exists. Flag code that departs from an accepted ADR.
 
-ruff, ruff format, mypy and actionlint run in pre-commit; the check command in `AGENTS.md` runs them and pytest, locally and in CI. Skip what they enforce.
+ruff, ruff format, mypy, actionlint and check-dependabot (which validates `.github/dependabot.yml`) run in pre-commit; the check command in `AGENTS.md` runs them and pytest, locally and in CI. Skip what they enforce.
 
 ## Python
 
