@@ -1,0 +1,266 @@
+# Triage: Claude triages one issue read-only, then a deterministic step applies its decision.
+#
+# A reusable workflow. The consumer's caller workflow owns the triggers and calls it; the logic
+# lives in scripts/triage/, which every job runs from the tools checkout (this repo at the
+# commit the consumer pinned), never from the consumer's checkout.
+#
+# Triggers the caller workflow must use:
+#   issues: types [labeled], and workflow_dispatch with a required number input named `issue`
+#   (the issue comes from the caller's event: github.event.issue.number, or that input).
+#   Adding `needs-triage` to an open issue is the only switch: the gate re-reads the issue's
+#   live state, so any other label, a closed issue or a dispatch without the label skips.
+#
+# Permissions the calling job must grant: contents: read, issues: write. Each job here narrows
+# them: the gate and Claude jobs get issues: read, and only the apply job writes.
+#
+# Concurrency: none here. The caller workflow owns it, one group per issue, not cancelling a
+# run in progress, so two events on one issue apply in order.
+#
+# Secrets, both optional; pass one by name (`secrets: inherit` only reaches callers in the
+# same organization or enterprise). An unset one is empty, which the Claude step treats as
+# absent:
+#   CLAUDE_CODE_OAUTH_TOKEN  a Claude subscription token, from `claude setup-token`.
+#   ANTHROPIC_API_KEY        a Claude Console API key, instead.
+#
+# Inputs, all optional:
+#   labels-doc    the consumer's label doc, which Claude reads first.
+#                 Default docs/agents/triage-labels.md.
+#   project-docs  newline-separated paths Claude reads for the project's terms and structure.
+#                 Default GLOSSARY.md, docs/domain.md and docs/adr/.
+#   model         the Claude model: letters, digits, '.', '-', '_', '[' and ']'. Default sonnet.
+#   max-turns     Claude's turn cap, a whole number from 1 to 50. Default 10.
+#   The gate validates model and max-turns; a bad value fails it, so nothing else runs.
+#
+# Example caller workflow (pin a full commit SHA of a release, with its tag in a comment):
+#
+#   name: Triage
+#   on:
+#     issues:
+#       types: [labeled]
+#     workflow_dispatch:
+#       inputs:
+#         issue:
+#           description: Issue number to triage again (it must be open and carry needs-triage)
+#           required: true
+#           type: number
+#   permissions: {}
+#   concurrency:
+#     group: triage-${{ github.event.issue.number || inputs.issue }}
+#     cancel-in-progress: false
+#   jobs:
+#     triage:
+#       permissions:
+#         contents: read
+#         issues: write
+#       uses: mindwidgets/workflows/.github/workflows/triage.yml@<sha> # vX.Y.Z
+#       secrets:
+#         CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+name: Triage
+
+on:
+  workflow_call:
+    inputs:
+      labels-doc:
+        description: The label doc Claude reads first
+        type: string
+        default: docs/agents/triage-labels.md
+      project-docs:
+        description: Newline-separated paths Claude reads for the project's terms and structure
+        type: string
+        default: |
+          GLOSSARY.md
+          docs/domain.md
+          docs/adr/
+      model:
+        description: "The Claude model: letters, digits, '.', '-', '_', '[' and ']'"
+        type: string
+        default: sonnet
+      max-turns:
+        description: Claude's turn cap, a whole number from 1 to 50
+        type: number
+        default: 10
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: A Claude subscription token; pass this or ANTHROPIC_API_KEY
+        required: false
+      ANTHROPIC_API_KEY:
+        description: A Claude Console API key; pass this or CLAUDE_CODE_OAUTH_TOKEN
+        required: false
+
+permissions: {}
+
+# The github context is the caller workflow's, so these name the consumer's repo and issue.
+# Inside a called workflow `inputs` is this workflow's, so a dispatch's issue is read from the
+# event instead.
+env:
+  ISSUE: ${{ github.event.issue.number || github.event.inputs.issue }}
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+      model: ${{ steps.gate.outputs.model }}
+      max-turns: ${{ steps.gate.outputs.max-turns }}
+    steps:
+      # The tools checkout: this repo at the commit the consumer pinned.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: false
+      - name: Validate the inputs and gate on the issue's live state
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name == 'issues' && github.event.action || github.event_name }}
+          LABEL: ${{ github.event.label.name }}
+          SENDER_TYPE: ${{ github.event.sender.type }}
+          MODEL: ${{ inputs.model }}
+          MAX_TURNS: ${{ inputs.max-turns }}
+        run: >-
+          uv run --locked --no-dev python -m scripts.triage.gate --event "$EVENT" --issue "$ISSUE"
+          --label "$LABEL" --sender-type "$SENDER_TYPE" --model "$MODEL" --max-turns "$MAX_TURNS"
+
+  triage:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      # Only a decision the credential check passed leaves this job, the one holding the secret.
+      decision: ${{ steps.secret-check.outputs.clean == 'true' && steps.claude.outputs.structured_output || '' }}
+    steps:
+      # Claude reads the consumer's checkout at its default branch, at the workspace root.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      # The tools checkout goes in a subdirectory (checkout writes only inside the workspace),
+      # then moves under $RUNNER_TEMP, which Claude's Read(~/work/_temp/**) rule denies.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .triage-tools
+          persist-credentials: false
+      - name: Move the tools checkout out of Claude's workspace
+        run: mv "$GITHUB_WORKSPACE/.triage-tools" "$RUNNER_TEMP/triage-tools"
+      # No cache in the job holding the secret: a restored cache could carry another run's files.
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: false
+          working-directory: ${{ runner.temp }}/triage-tools
+      - name: Write the issue input
+        working-directory: ${{ runner.temp }}/triage-tools
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          uv run --locked --no-dev python -m scripts.triage.issue_input --issue "$ISSUE"
+          --output "$GITHUB_WORKSPACE/triage-issue-input.md"
+      - name: Render the prompt and load the decision schema
+        id: load
+        working-directory: ${{ runner.temp }}/triage-tools
+        env:
+          LABELS_DOC: ${{ inputs.labels-doc }}
+          PROJECT_DOCS: ${{ inputs.project-docs }}
+        run: |
+          delimiter="EOF-$(openssl rand -hex 16)"
+          prompt="$(uv run --locked --no-dev python -m scripts.triage.prompt \
+            --labels-doc "$LABELS_DOC" --project-docs "$PROJECT_DOCS")"
+          {
+            echo "prompt<<$delimiter"
+            printf '%s\n' "$prompt"
+            echo "$delimiter"
+            # claude_args takes the schema inline in single quotes, so escape any apostrophe.
+            # $schema goes too: it names a draft the CLI's validator need not know.
+            printf 'schema=%s\n' "$(jq -c 'del(.["$schema"])' scripts/triage/decision.schema.json \
+              | sed "s/'/\\\\u0027/g")"
+          } >> "$GITHUB_OUTPUT"
+      - name: Triage with Claude (read-only)
+        id: claude
+        uses: anthropics/claude-code-action@f3b070c88125d33dbae5653df5f143101d4ea9dc # v1.0.276
+        with:
+          prompt: ${{ steps.load.outputs.prompt }}
+          github_token: ${{ github.token }}
+          # The caller passes one of these; the action treats the empty one as unset.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          display_report: "false"
+          # Block every file-tool read outside the checkout, whatever the rules below allow.
+          settings: '{"permissions":{"blockReadsOutsideWorkingDirectories":true}}'
+          # Never put a comment inside claude_args, only here above it. The action puts its own
+          # flags in front of the first line, so a comment there is no longer a whole line and
+          # its parser drops every flag after the `#` (an unquoted `#` mid-word counts too).
+          # scripts/triage/tests/test_workflow.py checks every flag below reaches the CLI.
+          # One bullet per line of claude_args, in order:
+          # - Model and turn limit, from the caller's inputs as the gate validated them.
+          # - Settings come only from the action (above), never from a file in the checkout.
+          # - dontAsk denies every tool call the allow rules don't cover; the denylist backs it up.
+          # - Reads only inside the checkout. Read rules also govern Grep and Glob, and
+          #   Grep(path)/Glob(path) rules match nothing, so neither gets a rule of its own:
+          #   dontAsk lets both search the checkout and denies them anywhere else.
+          # - Deny writes, shells, the web and the action's GitHub tools.
+          # - Nor anything that starts other work: subagents, skills, workflows, schedules.
+          # - Explicit denies where a credential could be read: the process environment
+          #   (/proc/self/environ), system and temp directories, the home directory's dotfiles
+          #   and the runner's own directories beside the checkout (~ is /home/runner and the
+          #   checkout is under ~/work, so ~ itself can't be denied: a deny beats every allow).
+          #   ~/work/_temp holds the tools checkout too.
+          # - The decision schema, which the action needs to return a structured decision.
+          claude_args: |
+            --model ${{ needs.gate.outputs.model }} --max-turns ${{ needs.gate.outputs.max-turns }}
+            --setting-sources user
+            --permission-mode dontAsk
+            --allowedTools "Read(./**)"
+            --disallowedTools Bash,Edit,MultiEdit,Write,NotebookEdit,WebFetch,WebSearch,mcp__github,mcp__github_comment,mcp__github_file_ops,mcp__github_inline_comment,mcp__github_ci
+            --disallowedTools Agent,Task,Skill,Workflow,CronCreate,RemoteTrigger,ScheduleWakeup,SendMessage,PushNotification,EnterWorktree
+            --disallowedTools "Read(//proc/**)" "Read(//sys/**)" "Read(//dev/**)" "Read(//etc/**)" "Read(//tmp/**)" "Read(//var/**)" "Read(//run/**)" "Read(//root/**)" "Read(//opt/**)" "Read(//usr/**)" "Read(~/.*)" "Read(~/.*/**)" "Read(~/work/_temp/**)" "Read(~/work/_actions/**)" "Read(~/work/_tool/**)" "Read(~/actions-runner/**)" "Read(~/runners/**)"
+            --json-schema '${{ steps.load.outputs.schema }}'
+      - name: Check there is a decision and it carries no credential
+        id: secret-check
+        working-directory: ${{ runner.temp }}/triage-tools
+        env:
+          DECISION: ${{ steps.claude.outputs.structured_output }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: uv run --locked --no-dev python -m scripts.triage.secret_check
+
+  apply:
+    needs: [gate, triage]
+    # Runs when the triage job failed too, so a missing decision is logged and changes nothing.
+    if: always() && needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: false
+      - name: Validate and apply the decision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DECISION: ${{ needs.triage.outputs.decision }}
+        run: |
+          printf '%s' "$DECISION" > "$RUNNER_TEMP/decision.json"
+          uv run --locked --no-dev python -m scripts.triage.apply --issue "$ISSUE" \
+            --decision-file "$RUNNER_TEMP/decision.json"
