@@ -61,7 +61,7 @@ It moves a SHA pin only to a SHA a release tag points at, so pin a tagged commit
 
 ### Caller workflow
 
-Save this as `.github/workflows/triage.yml` in your repo, and replace the SHA and the tag with a release's (see [Calling a workflow](#calling-a-workflow)):
+Save this as `.github/workflows/triage.yml` in your repo, pinned to `v1.0.0` below. For a later release, replace the SHA and the tag with that release's (see [Calling a workflow](#calling-a-workflow)):
 
 ```yaml
 name: Triage
@@ -89,7 +89,7 @@ jobs:
     permissions:
       contents: read
       issues: write
-    uses: mindwidgets/workflows/.github/workflows/triage.yml@0000000000000000000000000000000000000000 # v1.0.0
+    uses: mindwidgets/workflows/.github/workflows/triage.yml@11cfe9c10eda9ad0462de79d36a12a3c2df98cba # v1.0.0
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     # All optional, shown at their defaults: delete any you don't change.
