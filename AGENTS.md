@@ -20,7 +20,7 @@ Single-context: a root `GLOSSARY.md` holds the canonical terms and the words to 
 
 ### Project facts for shared workflows
 
-- **Check command**: `bash scripts/check.sh`. It syncs the uv environment, runs the pre-commit hooks on all files (ruff, ruff format, mypy, actionlint; `no-commit-to-branch` is skipped, since it guards commits, not trees) and then the tests. CI runs it on every PR and push to `main`; run it before opening a PR.
+- **Check command**: `bash scripts/check.sh`. It syncs the uv environment, runs the pre-commit hooks on all files (ruff, ruff format, mypy, actionlint, check-dependabot; `no-commit-to-branch` is skipped, since it guards commits, not trees) and then the tests. CI runs it on every PR and push to `main`; run it before opening a PR.
 - **Test suite**: `uv run pytest -q`.
 - **Coding standards**: `CODING_STANDARDS.md`, read at review time.
 - **Python**: run it through `uv` (`uv run python ...`, `uv run pytest`), never a bare `python`. The version is in `.python-version`.
