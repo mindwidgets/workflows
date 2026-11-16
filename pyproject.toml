@@ -1,0 +1,53 @@
+[project]
+name = "workflows"
+version = "0.1.0"
+description = "Shared, reusable GitHub Actions workflows, each with its scripts and tests"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "mypy>=1.18",
+    "pre-commit>=4.0.0",
+    "pytest>=9.0",
+    "ruff>=0.15.6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (unused imports, undefined names)
+    "I",   # isort (import ordering)
+    "N",   # pep8-naming conventions
+    "UP",  # pyupgrade (modernise syntax)
+    "B",   # flake8-bugbear (likely bugs and design issues)
+    "C4",  # flake8-comprehensions (cleaner list/dict/set expressions)
+    "SIM", # flake8-simplify (redundant code patterns)
+    "RUF", # ruff-native rules
+]
+
+[tool.mypy]
+python_version = "3.14"
+# Every .py file in the repo: workflow scripts and their tests live beside each workflow.
+files = ["."]
+exclude = ['^\.venv/', '^\.claude/']
+explicit_package_bases = true
+strict = true
+warn_unused_ignores = true
+enable_error_code = ["ignore-without-code"]
+
+# Test functions and fixtures need no annotations; their bodies stay checked.
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
