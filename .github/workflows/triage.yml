@@ -2,7 +2,9 @@
 #
 # A reusable workflow. The consumer's caller workflow owns the triggers and calls it; the logic
 # lives in scripts/triage/, which every job runs from the tools checkout (this repo at the
-# commit the consumer pinned), never from the consumer's checkout.
+# commit the consumer pinned), never from the consumer's checkout. Every setup-uv step pins one
+# exact uv release and its checksum, and uv runs only the Python that release names; bump them
+# together, deliberately (README.md, "Bumping uv").
 #
 # Triggers the caller workflow must use:
 #   issues: types [labeled], and workflow_dispatch with a required number input named `issue`
@@ -14,11 +16,12 @@
 # them: the gate and Claude jobs get issues: read, and only the apply job writes.
 #
 # Concurrency: none here. The caller workflow owns it, one group per issue, not cancelling a
-# run in progress, so two events on one issue apply in order.
+# run in progress, so two events on one issue apply in order. Without it, two runs on one issue
+# can apply at once, and the later one may undo the earlier one's labels or post a second comment.
 #
 # Secrets, both optional; pass one by name (`secrets: inherit` only reaches callers in the
 # same organization or enterprise). An unset one is empty, which the Claude step treats as
-# absent:
+# absent; if both are set, Claude uses ANTHROPIC_API_KEY:
 #   CLAUDE_CODE_OAUTH_TOKEN  a Claude subscription token, from `claude setup-token`.
 #   ANTHROPIC_API_KEY        a Claude Console API key, instead.
 #
@@ -29,7 +32,9 @@
 #                 Default GLOSSARY.md, docs/domain.md and docs/adr/.
 #   model         the Claude model: letters, digits, '.', '-', '_', '[' and ']'. Default sonnet.
 #   max-turns     Claude's turn cap, a whole number from 1 to 50. Default 10.
-#   The gate validates model and max-turns; a bad value fails it, so nothing else runs.
+#   The gate validates model and max-turns; a bad value fails it, so nothing else runs. A
+#   labels-doc or project-docs path holding a backtick or line break fails the triage job
+#   before Claude runs.
 #
 # Example caller workflow (pin a full commit SHA of a release, with its tag in a comment):
 #
@@ -95,6 +100,9 @@ permissions: {}
 env:
   ISSUE: ${{ github.event.issue.number || github.event.inputs.issue }}
   GH_REPO: ${{ github.repository }}
+  # uv runs only the CPython build its pinned release names (and checks it against the sha256
+  # that release carries), never a Python the runner image happens to ship.
+  UV_PYTHON_PREFERENCE: only-managed
 
 jobs:
   gate:
@@ -108,6 +116,16 @@ jobs:
       model: ${{ steps.gate.outputs.model }}
       max-turns: ${{ steps.gate.outputs.max-turns }}
     steps:
+      # Fail closed: an empty value would make checkout fall back to the consumer's repo and ref.
+      - name: Check the job context names the tools commit
+        env:
+          WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+          WORKFLOW_SHA: ${{ job.workflow_sha }}
+        run: |
+          if [ -z "$WORKFLOW_REPOSITORY" ] || [ -z "$WORKFLOW_SHA" ]; then
+            echo "::error::job.workflow_repository or job.workflow_sha is empty, so the tools checkout can't be pinned"
+            exit 1
+          fi
       # The tools checkout: this repo at the commit the consumer pinned.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -116,6 +134,8 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
+          version: "0.13.8"
+          checksum: 5acfd9177cfecf0bf87578f059728215ccc884388988f55f7a65041b57387d91
           enable-cache: false
       - name: Validate the inputs and gate on the issue's live state
         id: gate
@@ -142,6 +162,16 @@ jobs:
       # Only a decision the credential check passed leaves this job, the one holding the secret.
       decision: ${{ steps.secret-check.outputs.clean == 'true' && steps.claude.outputs.structured_output || '' }}
     steps:
+      # Fail closed: an empty value would make checkout fall back to the consumer's repo and ref.
+      - name: Check the job context names the tools commit
+        env:
+          WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+          WORKFLOW_SHA: ${{ job.workflow_sha }}
+        run: |
+          if [ -z "$WORKFLOW_REPOSITORY" ] || [ -z "$WORKFLOW_SHA" ]; then
+            echo "::error::job.workflow_repository or job.workflow_sha is empty, so the tools checkout can't be pinned"
+            exit 1
+          fi
       # Claude reads the consumer's checkout at its default branch, at the workspace root.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -160,6 +190,8 @@ jobs:
       # No cache in the job holding the secret: a restored cache could carry another run's files.
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
+          version: "0.13.8"
+          checksum: 5acfd9177cfecf0bf87578f059728215ccc884388988f55f7a65041b57387d91
           enable-cache: false
           working-directory: ${{ runner.temp }}/triage-tools
       - name: Write the issue input
@@ -248,6 +280,16 @@ jobs:
       contents: read
       issues: write
     steps:
+      # Fail closed: an empty value would make checkout fall back to the consumer's repo and ref.
+      - name: Check the job context names the tools commit
+        env:
+          WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+          WORKFLOW_SHA: ${{ job.workflow_sha }}
+        run: |
+          if [ -z "$WORKFLOW_REPOSITORY" ] || [ -z "$WORKFLOW_SHA" ]; then
+            echo "::error::job.workflow_repository or job.workflow_sha is empty, so the tools checkout can't be pinned"
+            exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ job.workflow_repository }}
@@ -255,6 +297,8 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
+          version: "0.13.8"
+          checksum: 5acfd9177cfecf0bf87578f059728215ccc884388988f55f7a65041b57387d91
           enable-cache: false
       - name: Validate and apply the decision
         env:

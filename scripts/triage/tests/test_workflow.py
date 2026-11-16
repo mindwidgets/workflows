@@ -1,12 +1,17 @@
 """Tests for the triage workflow file: its sandbox reaches the CLI, and its privilege shape.
 
+The uv pin is checked in CI's workflow too, since both install uv the same way.
+
 The workflow's ``claude_args`` goes through claude-code-action's own parser, after the
 action's flags, so the tests read it from ``triage.yml`` and run it through a port of that
 parser (``scripts.triage.tests.claude_code_action``) rather than a shell.
 """
 
 import json
+import os
 import re
+import shlex
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +25,7 @@ from scripts.triage.inputs import (
     validate_max_turns,
     validate_model,
 )
+from scripts.triage.issue_input import INPUT_PATH
 from scripts.triage.prompt import DEFAULT_LABELS_DOC, DEFAULT_PROJECT_DOCS
 from scripts.triage.tests.claude_code_action import (
     SdkOptions,
@@ -33,6 +39,9 @@ _WORKFLOW_PATH = _ROOT / ".github" / "workflows" / "triage.yml"
 _WORKFLOW_TEXT = _WORKFLOW_PATH.read_text(encoding="utf-8")
 _WORKFLOW: dict[Any, Any] = yaml.safe_load(_WORKFLOW_TEXT)
 _JOBS: dict[str, Any] = _WORKFLOW["jobs"]
+_CI: dict[Any, Any] = yaml.safe_load(
+    (_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+)
 _SCHEMA = _ROOT / "scripts" / "triage" / "decision.schema.json"
 
 _MODEL_EXPRESSION = "${{ needs.gate.outputs.model }}"
@@ -311,7 +320,8 @@ def test_the_triage_job_runs_scripts_only_from_the_tools_checkout_moved_out_of_c
     assert steps[move]["run"].endswith('"$RUNNER_TEMP/triage-tools"')
     assert script_steps
     assert all(step.get("working-directory") == tools for step in script_steps)
-    assert setup_uv["with"] == {"enable-cache": False, "working-directory": tools}
+    assert setup_uv["with"]["enable-cache"] is False
+    assert setup_uv["with"]["working-directory"] == tools
 
 
 def test_every_action_is_pinned_to_a_full_commit_sha():
@@ -368,3 +378,111 @@ def _header_comment() -> str:
 )
 def test_the_header_comment_documents_the_interface(documented):
     assert documented in _header_comment()
+
+
+def test_the_gate_job_outputs_only_what_the_gate_step_validated():
+    # claude_args trusts these outputs as validated: one wired to inputs.* would bypass the gate.
+    assert _JOBS["gate"]["outputs"] == {
+        "run": "${{ steps.gate.outputs.run }}",
+        "model": "${{ steps.gate.outputs.model }}",
+        "max-turns": "${{ steps.gate.outputs.max-turns }}",
+    }
+
+
+def test_the_gate_step_validates_the_callers_model_and_turn_cap():
+    (step,) = (step for step in _JOBS["gate"]["steps"] if step.get("id") == "gate")
+    words = shlex.split(step["run"])
+
+    assert words[words.index("-m") + 1] == "scripts.triage.gate"
+    assert (step["env"]["MODEL"], step["env"]["MAX_TURNS"]) == (
+        "${{ inputs.model }}",
+        "${{ inputs.max-turns }}",
+    )
+    assert words[words.index("--model") + 1] == "$MODEL"
+    assert words[words.index("--max-turns") + 1] == "$MAX_TURNS"
+
+
+def _tools_commit_check(job: str) -> dict[str, Any]:
+    step: dict[str, Any] = _JOBS[job]["steps"][0]
+    return step
+
+
+@pytest.mark.parametrize("job", sorted(_JOBS))
+def test_every_job_first_reads_the_tools_commit_from_the_job_context(job):
+    assert _tools_commit_check(job)["env"] == {
+        "WORKFLOW_REPOSITORY": "${{ job.workflow_repository }}",
+        "WORKFLOW_SHA": "${{ job.workflow_sha }}",
+    }
+
+
+def _run_tools_commit_check(job: str, repository: str, sha: str) -> int:
+    env = {"PATH": os.environ["PATH"], "WORKFLOW_REPOSITORY": repository, "WORKFLOW_SHA": sha}
+    script = _tools_commit_check(job)["run"]
+    return subprocess.run(["bash", "-c", script], env=env, capture_output=True).returncode
+
+
+@pytest.mark.parametrize("job", sorted(_JOBS))
+@pytest.mark.parametrize(
+    ("repository", "sha"),
+    [("", "0" * 40), ("mindwidgets/workflows", ""), ("", "")],
+    ids=["no repository", "no sha", "neither"],
+)
+def test_every_job_fails_before_the_tools_checkout_when_the_job_context_is_empty(
+    job, repository, sha
+):
+    # An empty value would make actions/checkout fall back to the consumer's repo and ref.
+    assert _run_tools_commit_check(job, repository, sha) != 0
+
+
+@pytest.mark.parametrize("job", sorted(_JOBS))
+def test_every_job_goes_on_when_the_job_context_names_the_tools_commit(job):
+    assert _run_tools_commit_check(job, "mindwidgets/workflows", "0" * 40) == 0
+
+
+def _setup_uv_steps() -> list[tuple[str, dict[str, Any]]]:
+    return [
+        (f"{file} {job_name}", step)
+        for file, workflow in (("triage.yml", _WORKFLOW), ("ci.yml", _CI))
+        for job_name, job in workflow["jobs"].items()
+        for step in job["steps"]
+        if step.get("uses", "").startswith("astral-sh/setup-uv@")
+    ]
+
+
+def test_triage_and_ci_install_uv_in_every_job_that_runs_a_script():
+    assert sorted(where for where, _ in _setup_uv_steps()) == [
+        "ci.yml check",
+        "triage.yml apply",
+        "triage.yml gate",
+        "triage.yml triage",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("where", "step"), _setup_uv_steps(), ids=[where for where, _ in _setup_uv_steps()]
+)
+def test_every_setup_uv_step_installs_an_exact_uv_release_checked_against_its_checksum(where, step):
+    # Without a version, setup-uv installs whatever uv is newest at run time.
+    assert re.fullmatch(r"\d+\.\d+\.\d+", str(step["with"].get("version")))
+    assert re.fullmatch(r"[0-9a-f]{64}", str(step["with"].get("checksum")))
+
+
+def test_every_setup_uv_step_installs_the_same_uv_build():
+    builds = {
+        (step["with"].get("version"), step["with"].get("checksum")) for _, step in _setup_uv_steps()
+    }
+
+    assert len(builds) == 1
+
+
+@pytest.mark.parametrize("workflow", [_WORKFLOW, _CI], ids=["triage.yml", "ci.yml"])
+def test_uv_runs_only_the_python_build_its_pinned_release_names(workflow):
+    # A Python already on the runner image would otherwise win over the pinned uv's own build.
+    assert workflow["env"]["UV_PYTHON_PREFERENCE"] == "only-managed"
+
+
+def test_the_issue_input_lands_where_the_prompt_tells_claude_to_read_it():
+    (step,) = (step for step in _JOBS["triage"]["steps"] if "issue_input" in step.get("run", ""))
+    words = shlex.split(step["run"])
+
+    assert words[words.index("--output") + 1] == f"$GITHUB_WORKSPACE/{INPUT_PATH}"

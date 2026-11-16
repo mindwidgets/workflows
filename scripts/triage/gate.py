@@ -1,7 +1,7 @@
 """The triage gate: whether an event starts a triage run.
 
 :func:`gate` is pure: an event and the issue's live :class:`~scripts.triage.issue.IssueState`
-in, a run-or-skip verdict out. ``main`` is the gate step's wrapper: it validates the
+in, a run-or-skip verdict out. ``main`` is the gate step's entry point: it validates the
 consumer's model and turn-cap inputs with :mod:`scripts.triage.inputs`, then reads that live
 state with ``gh``.
 """
@@ -14,8 +14,7 @@ from typing import Final, NamedTuple
 
 from scripts.triage.inputs import InvalidInputError, validate_max_turns, validate_model
 from scripts.triage.issue import IssueState, read_issue_state
-
-NEEDS_TRIAGE: Final = "needs-triage"
+from scripts.triage.labels import NEEDS_TRIAGE
 
 _LABELED: Final = "labeled"
 _TRIGGER_KINDS: Final = frozenset({_LABELED, "workflow_dispatch"})

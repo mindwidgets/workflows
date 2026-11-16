@@ -79,6 +79,7 @@ on:
 permissions: {}
 
 # One run per issue at a time, never cancelling one in progress, so two events apply in order.
+# Without it, two runs on one issue can apply at once and undo each other's labels.
 concurrency:
   group: triage-${{ github.event.issue.number || inputs.issue }}
   cancel-in-progress: false
@@ -103,7 +104,7 @@ jobs:
 ```
 
 - The dispatch input must be named `issue`: the workflow reads it from your event.
-- `labels-doc` is the doc Claude reads first, saying what each label means in your repo. `project-docs` lists the files and directories Claude reads for your project's terms and structure, one per line.
+- `labels-doc` is the doc Claude reads first, saying what each label means in your repo. `project-docs` lists the files and directories Claude reads for your project's terms and structure, one per line. A path holding a backtick or line break fails the run before Claude starts.
 - `model` takes letters, digits, `.`, `-`, `_`, `[` and `]`; `max-turns` a whole number from 1 to 50. The gate rejects anything else, and then nothing else runs.
 
 ### Labels to create
@@ -125,6 +126,7 @@ Your repo keeps its own Claude credential as a repository secret, and the caller
 
 - **Subscription token (`CLAUDE_CODE_OAUTH_TOKEN`):** run `claude setup-token` locally and store the result as the secret. It expires one year after it is minted, so record the mint date and a renew-by date (about a month before expiry) in your repo's own docs, with a calendar reminder. To renew, mint a new token, replace the secret and update those dates. An expired or missing token fails the run red and leaves `needs-triage` on the issue.
 - **API key instead:** add an `ANTHROPIC_API_KEY` secret holding a Claude Console key, and change the one line under `secrets:` to `ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}`.
+- **Pass one, not both.** If you pass both, Claude uses `ANTHROPIC_API_KEY` and bills the Console key, not your subscription.
 
 ## Maintaining triage
 
@@ -140,9 +142,15 @@ The history behind these rules is in aura-prototype, triage's first consumer: th
 
 The port the regression test relies on, `scripts/triage/tests/claude_code_action.py`, is faithful only to the action SHA it names. On any bump of `anthropics/claude-code-action`, recheck the port against the new SHA's `base-action/src/parse-sdk-options.ts`, `src/modes/agent/index.ts` and the `shell-quote` version `base-action/bun.lock` locks, update it and the SHA its docstring names, and only then merge the bump.
 
+### Bumping uv
+
+Every `astral-sh/setup-uv` step, in `triage.yml` and in CI, installs one exact uv release (`version:`) and checks the download against that release's sha256 (`checksum:`, for `uv-x86_64-unknown-linux-gnu.tar.gz`). Without them, setup-uv installs whatever uv is newest when the job runs, including in the job holding the consumer's Claude credential and the one that writes to its issues. Python comes from the same pin: the workflows set `UV_PYTHON_PREFERENCE=only-managed`, so uv runs the CPython build its own release names and verifies it against the sha256 that release carries, never a Python on the runner image.
+
+So a uv bump is a deliberate change, made in its own PR: pick the release, read its changelog, take the checksum from its `uv-x86_64-unknown-linux-gnu.tar.gz.sha256` asset, update `version:` and `checksum:` on every step together, and let CI run the suite on it. `scripts/triage/tests/test_workflow.py` fails if any step lacks an exact version or a checksum, or if the steps disagree.
+
 ### The actionlint ignore
 
-`.github/actionlint.yaml` ignores one error, only in `triage.yml`: actionlint doesn't yet know the `job` context's documented `workflow_repository` and `workflow_sha`, which the tools checkout uses. The fix is upstream ([rhysd/actionlint#707](https://github.com/rhysd/actionlint/issues/707), still open). Once a release of actionlint knows `job.workflow_sha`, bump the pinned actionlint and delete the ignore.
+`.github/actionlint.yaml` ignores one error, only in `triage.yml`: actionlint doesn't yet know the `job` context's documented `workflow_repository` and `workflow_sha`, which the tools checkout uses. Each job's first step fails the run if either renders empty, since `actions/checkout` would otherwise fall back to your repo and ref. The fix is upstream ([rhysd/actionlint#707](https://github.com/rhysd/actionlint/issues/707), still open). Once a release of actionlint knows `job.workflow_sha`, bump the pinned actionlint and delete the ignore.
 
 ## Contributing
 

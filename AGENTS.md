@@ -16,7 +16,7 @@ Default triage labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 
 ### Domain docs
 
-Single-context: a root `GLOSSARY.md` holds the canonical terms and the words to avoid. It doesn't exist yet: create it the first time a term needs pinning down. Record design decisions in `docs/adr/`, also created when the first one is needed.
+Single-context: a root `GLOSSARY.md` holds the canonical terms and the words to avoid; add a term there the first time it needs pinning down. Record design decisions in `docs/adr/`, created when the first one is needed.
 
 ### Project facts for shared workflows
 

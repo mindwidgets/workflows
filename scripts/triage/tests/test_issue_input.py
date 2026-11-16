@@ -135,3 +135,27 @@ def test_the_entry_asks_gh_for_every_field_the_input_carries(tmp_path):
     (call,) = fake_gh.calls
     fields = set(call[call.index("--json") + 1].split(","))
     assert fields >= {"number", "title", "body", "labels", "author", "comments"}
+
+
+@pytest.mark.parametrize("existing", ["a symlink", "a file"])
+def test_the_entry_never_writes_through_a_path_the_checkout_already_holds(existing, tmp_path):
+    # The output sits in the consumer's checkout, so a committed symlink by that name could
+    # otherwise redirect the write.
+    target = tmp_path / "elsewhere.txt"
+    target.write_text("untouched", encoding="utf-8")
+    output = tmp_path / "issue-input.md"
+    if existing == "a symlink":
+        output.symlink_to(target)
+    else:
+        output.write_text("untouched", encoding="utf-8")
+
+    with (
+        patch("scripts.triage.issue.subprocess.run", FakeGh(_gh_issue())),
+        pytest.raises(SystemExit) as exit_info,
+    ):
+        main(["--issue", "7", "--output", str(output)])
+
+    assert exit_info.value.code != 0
+    assert str(output) in str(exit_info.value.code)
+    assert target.read_text(encoding="utf-8") == "untouched"
+    assert output.read_text(encoding="utf-8") == "untouched"

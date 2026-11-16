@@ -10,7 +10,7 @@ from typing import Any
 
 import yaml
 
-from scripts.triage.apply import CATEGORY_LABELS, STATE_LABELS
+from scripts.triage.labels import CATEGORY_LABELS, STATE_LABELS
 
 _ROOT = Path(__file__).resolve().parents[3]
 _README = (_ROOT / "README.md").read_text(encoding="utf-8")
@@ -60,6 +60,13 @@ def test_the_caller_example_passes_only_inputs_and_secrets_the_workflow_declares
     assert set(job["secrets"]) <= set(interface["secrets"])
 
 
+def test_the_caller_example_shows_every_input_at_the_workflows_default():
+    # README says the example's inputs are "shown at their defaults".
+    inputs = _WORKFLOW[True]["workflow_call"]["inputs"]
+
+    assert _calling_job()["with"] == {name: spec["default"] for name, spec in inputs.items()}
+
+
 def test_the_caller_example_grants_the_calling_job_exactly_what_triage_needs():
     assert _caller_example()["permissions"] == {}
     assert _calling_job()["permissions"] == {"contents": "read", "issues": "write"}
@@ -96,4 +103,4 @@ def test_the_labels_to_create_are_the_labels_triage_writes():
     listed = re.findall(r"^- `([^`]+)`$", _section("### Labels to create"), re.MULTILINE)
 
     assert len(listed) == len(set(listed))
-    assert set(listed) == {*CATEGORY_LABELS.values(), *STATE_LABELS.values()}
+    assert set(listed) == CATEGORY_LABELS | STATE_LABELS

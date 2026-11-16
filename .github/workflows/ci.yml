@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+# uv runs only the CPython build its pinned release names, never one the runner image ships.
+env:
+  UV_PYTHON_PREFERENCE: only-managed
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -23,5 +27,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
+          version: "0.13.8"
+          checksum: 5acfd9177cfecf0bf87578f059728215ccc884388988f55f7a65041b57387d91
           enable-cache: true
       - run: bash scripts/check.sh
