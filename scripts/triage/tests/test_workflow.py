@@ -85,6 +85,7 @@ _EACH_INPUT_SHAPE = pytest.mark.parametrize(
 
 
 def _claude_step() -> dict[str, Any]:
+    step: dict[str, Any]
     (step,) = (step for step in _JOBS["triage"]["steps"] if step.get("id") == "claude")
     return step
 
