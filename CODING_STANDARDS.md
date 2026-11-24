@@ -4,7 +4,7 @@ Read at review time (`code-review`), not during implementation. Each source belo
 
 - **Production code**: the `code-quality` skill (`code-quality/SKILL.md`).
 - **Tests**: the `test-quality` skill (`test-quality/SKILL.md`) and `test-quality/mocking-python.md`.
-- **Comments and docstrings**: the `comments` skill (`comments/SKILL.md`) and `comments/python-docstrings.md`.
+- **Comments and docstrings**: the `comments-backpressure` skill (`comments-backpressure/SKILL.md`) and `comments-backpressure/python-docstrings.md`.
 - **Terms**: `GLOSSARY.md`. Use its canonical terms and flag the terms it says to avoid.
 - **Design decisions**: `docs/adr/`, once it exists. Flag code that departs from an accepted ADR.
 

@@ -28,7 +28,7 @@ Single-context: a root `GLOSSARY.md` holds the canonical terms and the words to 
 
 ## Working on workflows with an agent
 
-The agent skills these docs name (`tdd`, `code-review`, `code-quality`, `test-quality`, `comments`, `diagnosing-bugs` and others) are not committed here. Install them into your clone from their public sources (both locations are git-ignored):
+The agent skills these docs name (`tdd`, `code-review`, `code-quality`, `test-quality`, `comments-backpressure`, `diagnosing-bugs` and others) are not committed here. Install them into your clone from their public sources (both locations are git-ignored):
 
 ```sh
 npx skills add mattpocock/skills -a claude-code --copy -y
