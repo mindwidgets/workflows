@@ -35,7 +35,9 @@ npx skills add mattpocock/skills -a claude-code --copy -y
 npx skills add aaronsilinskas/ai-skills -a claude-code --copy -y
 ```
 
-Then, once per clone: `uv sync` and `uv run pre-commit install`. pre-commit blocks commits to `main` (`no-commit-to-branch`), so work on a branch.
+Then, once per clone, from the main checkout: `uv sync` and `uv run pre-commit install`. pre-commit blocks commits to `main` (`no-commit-to-branch`), so work on a branch.
+
+Never run `pre-commit install` from a worktree. Every worktree of a clone shares one hook, which runs pre-commit from the Python it was installed with. Installed from the main checkout, it points at that checkout's `.venv` and works in every worktree, with or without uv. Installed from a worktree, it breaks once that worktree is removed; rerun `uv run pre-commit install` from the main checkout to fix it.
 
 To make a change: build it with the `tdd` skill, review it with `code-review` against `CODING_STANDARDS.md`, run `bash scripts/check.sh`, and open a PR. Propose larger features as an issue first.
 
